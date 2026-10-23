@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "created_at": "2026-10-23T20:30:50.230260+00:00",
+  "pbkdf2_iterations": 250000,
+  "worker_url": "https://dms-ingress.dehoveleho.workers.dev",
+  "recipients": [
+    {
+      "id": "alice",
+      "name": "Alice Smith",
+      "email": "alice@example.com",
+      "hint": "Favorite childhood pet name + graduation year (e.g. Buster2014)",
+      "photo": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=85",
+      "salt": "79446ef30ed135d3150d6881578a3655",
+      "iv": "1476f68b93ebed775a54b156",
+      "ciphertext": "dd5a114a6e1e3188f4cea0171e4bf23041af910bb20f687c0aa91f35bd719f9f1af94340a8691a732981894cb0ddd478aa1da7fdfcd72099fd1c66083ac254441e1eb85f4a22ac91e49de6580d1ba7e996902eca07ddb45901673914e73916fbb2eb9514a67f43c74ed510427cf6d54d7e2a4b46d2ec3a7eab3f51e6f6c9708b360afb9ce70125851341166bf2ec68f0567c51d25cd10c93716873b5698bfdd9cf8550cd2a22c0a71437cfa37b0952a13d2c6c5894018f028e9ca840053f16b9ab94a2ce9d9601fb69dc82b1630cb596c8cbe6ca7c8533007045feb466a56e0d6b4dc5fa6811f7e983c848690f4f2114d9a52da7e817368bbe3171839457b14d5804cc968137fc8ec9c57904b9a6344e0df61e206b2a0ec657ed1a9b817af109ed760012b981d775287b85eef17143092263f6cf645ea6676f2cff5b822ac13e21495e9b0575e0a1f592d54c91156ac3d82fb94aaf736e7f39ca33b1dc782b7ebb5d8737e49b5dd7f8de9f4d598ca419a3cbf63f59d49a115386c789027ec92ab9df2438db33449fe155f5cc34b47bf81d9f3b2624f0e37010bed7d3ce12acc1bc43"
+    },
+    {
+      "id": "bob",
+      "name": "Bob Jones",
+      "email": "bob@example.com",
+      "hint": "Our favorite ski cabin town in 2021 (lowercase, no spaces)",
+      "photo": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=1200&q=85",
+      "salt": "487920c65cb65434ff301cab7fc192b9",
+      "iv": "3849c7a31bfde08daa64a9e3",
+      "ciphertext": "56b4eebf515ffb882c9d02cfd7ca7f53f0c5aa49b7b742c1b2224b8638c105b016155a7665bb765d9e38d39d71ad8a9a5eb9f5e9d8e5f01cba85cc1a8bd9c58ebdbfa330525ec003e73200f71c11f3cb67007ad962978f8ba83965f78dad42835282d2680ceba8f6b83e367fc1661bb8fb25796b7c20d19efbd10e251a42015fb034f54e884db0507bb235c24c9d09461aa26ae752bef9b0aee2436b7da221a36a9449f63bdea1dbebe230c762778b54737fa31a5bc880795953adfd3f48a05658504de24f9aa4aadff008e4a9487fd02ca3c71039e13da2c740905317cc11a0b0b90120b003681b101e037ee05c301ebfe22853755a7235b417a71c79e04ef48d159d83a0a93d3161856a1194272b8383c957a99a2980a5f132dd6c5d8db634dd044435bee69f00a4adde92066356e2834292a8c9c9b4806492d8b306cd44c00af5c0fd6eb55416da86fb791de8ee371cd7373996"
+    }
+  ]
+}

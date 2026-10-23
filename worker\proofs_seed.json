@@ -1,0 +1,18 @@
+[
+  {
+    "key": "proof:alice",
+    "value": "02aa9d5fcffa1f7f0d18db1ed1adb9b81aa5119592350cc165bd25148d59164e"
+  },
+  {
+    "key": "meta:alice",
+    "value": "{\"name\": \"Alice Smith\", \"email\": \"alice@example.com\"}"
+  },
+  {
+    "key": "proof:bob",
+    "value": "72b8c684cd3756c3fc52554191aeeff1bddccbc14093927cd9e8b805e15d6da9"
+  },
+  {
+    "key": "meta:bob",
+    "value": "{\"name\": \"Bob Jones\", \"email\": \"bob@example.com\"}"
+  }
+]

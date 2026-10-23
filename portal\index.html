@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCHIVES &bull; Dead Man's Switch</title>
+  <meta name="description" content="Autonomous Zero-Knowledge Vault. Conception inspirée de Pacôme Pertant.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Film Grain Overlay -->
+  <div class="film-grain"></div>
+
+  <!-- Custom Inertia Cursor -->
+  <div id="customCursor" class="custom-cursor"></div>
+  <div id="cursorTrail" class="cursor-trail"></div>
+
+  <!-- Floating Cursor Preview Image for List View -->
+  <div id="cursorPreview" class="cursor-image-preview">
+    <img id="cursorPreviewImg" src="" alt="Aperçu">
+  </div>
+
+  <!-- Top Navigation Header -->
+  <header class="header-bar">
+    <div class="brand-col">
+      <span class="brand-title">DMS // ARCHIVES</span>
+      <span class="brand-sub">AUTONOMOUS VAULT &bull; ZERO-KNOWLEDGE</span>
+    </div>
+
+    <div class="status-center">
+      <span class="status-dot"></span>
+      <span id="realtimeClock">PARIS 00:00:00 CET</span>
+    </div>
+
+    <div class="actions-col">
+      <button type="button" id="soundToggleBtn" class="btn-toggle-sound sound-on">[SOUND: ON]</button>
+      <div class="nav-mode-switch">
+        <button type="button" id="modeSpatialBtn" class="mode-btn active">SPATIAL</button>
+        <button type="button" id="modeListBtn" class="mode-btn">INDEX</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Stage -->
+  <main class="hero-stage">
+    <div class="stage-header">
+      <div class="stage-left">
+        <h1 class="hero-main-title">
+          VAULT <span class="italic-serif">Archives</span>
+        </h1>
+      </div>
+      <div class="stage-meta">
+        <div id="vaultCountLabel">2 PERSONNES ENREGISTRÉES</div>
+        <div>AES-256-GCM // PBKDF2 250K</div>
+      </div>
+    </div>
+
+    <!-- Presentation Mode 1: 3D Spatial Perspective Tiles -->
+    <section id="spatialView" class="spatial-tiles-view">
+      <!-- Populated dynamically via app.js -->
+    </section>
+
+    <!-- Presentation Mode 2: Editorial List View with Floating Preview -->
+    <section id="listView" class="editorial-list-view">
+      <ul id="listContainer" class="list-container">
+        <!-- Populated dynamically via app.js -->
+      </ul>
+    </section>
+  </main>
+
+  <!-- Gateway Modal (Unlock Prompt & Shockwave Explosion & Revealed Document) -->
+  <div id="gatewayStage" class="gateway-modal-stage" role="dialog" aria-modal="true" aria-hidden="true">
+    <button type="button" id="closeGatewayBtn" class="btn-close-gateway">[ESC / FERMER]</button>
+
+    <!-- Visual Explosion Shockwave Effects -->
+    <div id="fxStage" class="fx-stage">
+      <div class="fx-flash"></div>
+      <div class="fx-shockwave"></div>
+    </div>
+
+    <!-- 1. Code Input Screen -->
+    <div id="unlockBox" class="unlock-box">
+      <img id="dialogPhoto" class="dialog-hero-photo" src="" alt="Portrait">
+      <h2 id="dialogName" class="dialog-person-name">NOM DU DESTINATAIRE</h2>
+      <div id="dialogId" class="dialog-ref-tag">ARCHIVE CONFIDENTIELLE</div>
+
+      <div id="dialogHint" class="dialog-hint-block" style="display: none;"></div>
+
+      <div class="code-input-container">
+        <input 
+          type="password" 
+          id="codeField" 
+          class="code-field" 
+          placeholder="CODE / PHRASE SECRÈTE" 
+          autocomplete="off" 
+          spellcheck="false"
+        >
+      </div>
+
+      <button type="button" id="btnDetonate" class="btn-detonate-unlock">
+        DÉVERROUILLER L'ARCHIVE
+      </button>
+
+      <div id="dialogError" class="dialog-error-msg">PHRASE SECRÈTE INCORRECTE</div>
+    </div>
+
+    <!-- 2. The Unlocked Confidential Document (Appears after the explosion) -->
+    <div id="documentStage" class="document-stage">
+      <div class="doc-top-bar">
+        <div>
+          <span class="doc-stamp">&#x2714; ARCHIVE DÉVERROUILLÉE</span>
+          <h2 id="docRecipientName" class="doc-main-headline">DOCUMENT CONFIDENTIEL</h2>
+          <div id="docMetaSub" class="doc-meta-sub">DÉCHIFFRÉ EN MÉMOIRE BROWSER &bull; AES-256-GCM</div>
+        </div>
+        <div class="doc-button-bar">
+          <button type="button" id="copyDocBtn" class="btn-doc">
+            <span>COPIER LE TEXTE</span>
+          </button>
+          <button type="button" id="downloadDocBtn" class="btn-doc">
+            <span>TÉLÉCHARGER (.TXT)</span>
+          </button>
+          <button type="button" id="closeDocBtn" class="btn-doc">
+            <span>FERMER</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Plain Text Content -->
+      <article id="docBody" class="doc-unlocked-body"></article>
+
+      <div class="doc-bottom-proof">
+        <div><strong>PREUVE ZÉRO-CONNAISSANCE :</strong> <span id="docProofSpan" style="color: var(--accent-gold);"></span></div>
+        <div><strong>INGRESS CLOUDFLARE :</strong> <span id="docAckSpan">Confirmation transmise...</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Ticker -->
+  <footer class="footer-bar">
+    <div>PACÔME PERTANT ARCHITECTURE AESTHETICS</div>
+    <div>DEAD MAN'S SWITCH &bull; 100% CLIENT-SIDE SUBTLECRYPTO</div>
+    <div>ZERO-KNOWLEDGE VERIFIED</div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

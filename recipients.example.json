@@ -1,0 +1,22 @@
+{
+  "recipients": [
+    {
+      "id": "alice",
+      "name": "Alice Smith",
+      "email": "alice@example.com",
+      "photo": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=85",
+      "hint": "Favorite childhood pet name + graduation year (e.g. Buster2014)",
+      "message": "Dear Alice,\n\nIf you are reading this, the Dead Man's Switch has triggered.\nHere are the critical master keys and document locations:\n\n- Master Vault: https://vault.example.com\n- Recovery Seed: ocean breeze mountain winter silent river stone candle\n- Attorney Contact: Robert Davis (555-0199)\n- Safe Deposit Box #402: Key is located in the false bottom of my desk drawer.\n\nTake care of yourself,\nAlways.",
+      "passphrase": "Correct-Horse-Battery-Staple-2026!"
+    },
+    {
+      "id": "bob",
+      "name": "Bob Jones",
+      "email": "bob@example.com",
+      "photo": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=1200&q=85",
+      "hint": "Our favorite ski cabin town in 2021 (lowercase, no spaces)",
+      "message": "Hi Bob,\n\nHere are the access credentials for our shared infrastructure and offline backups:\n\n- Primary Server IP: 198.51.100.42\n- Root SSH Key backup located in safe box #104\n- Production database decryption key: DB-SEC-99482-GAMMA\n- DNS registrar recovery email: backup-ops@domain.internal\n\nThanks for everything, my friend.",
+      "passphrase": "aspen-colorado-powder-snow"
+    }
+  ]
+}
