@@ -1,0 +1,61 @@
+name: Dead Man's Switch Evaluator
+
+on:
+  schedule:
+    # Runs weekly every Sunday at 00:00 UTC (configurable to daily: '0 12 * * *')
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    # Allows manual trigger for testing and dry-run execution
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (logs email output without delivering)'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: deadmanswitch-evaluation
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    name: Evaluate Switch Status
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 is essential to ensure full commit history is available for git log
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Switch Evaluation
+        env:
+          CF_WORKER_URL: ${{ secrets.CF_WORKER_URL }}
+          CF_STATUS_TOKEN: ${{ secrets.CF_STATUS_TOKEN }}
+          HEARTBEAT_SECRET: ${{ secrets.HEARTBEAT_SECRET }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          DMS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: |
+          python scripts/check_switch.py

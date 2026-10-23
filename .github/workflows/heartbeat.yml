@@ -1,0 +1,38 @@
+name: Record Heartbeat
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Optional heartbeat check-in note'
+        required: false
+        default: 'Routine proof of life check-in'
+
+concurrency:
+  group: heartbeat-commit
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    name: Commit Proof of Life
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git Author
+        run: |
+          git config user.name "DMS Heartbeat Bot"
+          git config user.email "bot@deadmanswitch.local"
+
+      - name: Record Empty Commit
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REASON="${{ github.event.inputs.reason || 'Cloudflare Ingress Heartbeat' }}"
+          git commit --allow-empty -m "Heartbeat: proof of life at ${TIMESTAMP} (${REASON}) [skip ci]"
+          git push origin HEAD:${{ github.ref_name || 'main' }}
