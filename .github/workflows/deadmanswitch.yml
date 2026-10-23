@@ -2,8 +2,8 @@ name: Dead Man's Switch Evaluator
 
 on:
   schedule:
-    # Runs weekly every Sunday at 00:00 UTC (configurable to daily: '0 12 * * *')
-    - cron: '0 0 * * 0'
+    # Exécution quotidienne tous les jours à 12:00 UTC (14:00 heure de Paris)
+    - cron: '0 12 * * *'
   workflow_dispatch:
     # Allows manual trigger for testing and dry-run execution
     inputs:
