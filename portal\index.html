@@ -194,7 +194,7 @@ $("#q").oninput = () => { clearTimeout(tm); tm = setTimeout(search, 200); };
 
 async function loadVault() {
   try {
-    const res = await fetch("vault.json");
+    const res = await fetch("vault.json?t=" + Date.now());
     D = await res.json();
     const params = new URLSearchParams(window.location.search);
     const qName = params.get("recipient") || params.get("q");

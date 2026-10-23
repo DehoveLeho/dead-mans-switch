@@ -1,0 +1,12 @@
+{
+  "recipients": [
+    {
+      "id": "limace",
+      "name": "Limace Baveuse",
+      "email": "noskillgames89@gmail.com",
+      "hint": "Animal + adjectif + année (Limace-Baveuse-2026!)",
+      "message": "Bonjour Limace,\n\nSi tu lis ce message, c'est que le Dead Man's Switch s'est déclenché comme prévu après 3 rappels quotidiens consécutifs restés sans réponse.\n\nLe système de déchiffrement zéro-connaissance fonctionne parfaitement. Ce canal confidentiel est opérationnel.",
+      "passphrase": "Limace-Baveuse-2026!"
+    }
+  ]
+}

@@ -27,8 +27,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-WARNING_THRESHOLD_DAYS = 7.0
-TRIGGER_THRESHOLD_DAYS = 30.0
+WARNING_THRESHOLD_DAYS = float(os.environ.get("WARNING_THRESHOLD_DAYS", "1.0"))
+TRIGGER_THRESHOLD_DAYS = float(os.environ.get("TRIGGER_THRESHOLD_DAYS", "4.0"))
 SECONDS_PER_DAY = 86400.0
 
 
@@ -93,6 +93,34 @@ def fetch_worker_status(worker_url: str, status_token: str) -> Dict[str, Any]:
         return {}
 
 
+def fetch_worker_last_heartbeat(worker_url: str, status_token: str) -> Optional[int]:
+    """
+    Redundancy mechanism: fetches the last_heartbeat timestamp from Cloudflare KV.
+    Ensures that if GitHub API experienced transient issues or PAT expiration,
+    proof-of-life registered in Cloudflare KV still prevents false triggering.
+    """
+    if not worker_url:
+        return None
+
+    url = f"{worker_url.rstrip('/')}/status"
+    headers = {
+        "User-Agent": "DeadMansSwitch-Evaluator/1.0",
+    }
+    if status_token:
+        headers["Authorization"] = f"Bearer {status_token}"
+
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            hb = data.get("last_heartbeat")
+            if hb and isinstance(hb, dict) and "timestamp" in hb:
+                return int(hb["timestamp"])
+    except Exception as err:
+        print(f"[*] Note: Could not fetch KV heartbeat backup ({err}).")
+    return None
+
+
 def send_email_resend(api_key: str, from_addr: str, to_addr: str, subject: str, body_text: str, body_html: Optional[str] = None) -> bool:
     """Sends email via Resend API."""
     url = "https://api.resend.com/emails"
@@ -100,8 +128,12 @@ def send_email_resend(api_key: str, from_addr: str, to_addr: str, subject: str, 
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    sender = from_addr if from_addr and "@" in from_addr else "onboarding@resend.dev"
+    if "notifications@resend.dev" in sender:
+        sender = "onboarding@resend.dev"
+
     payload = {
-        "from": from_addr or "Dead Man's Switch <notifications@resend.dev>",
+        "from": sender,
         "to": [to_addr],
         "subject": subject,
         "text": body_text,
@@ -188,44 +220,63 @@ def dispatch_notification(
         print(f"[DRY-RUN] Body:\n{body_text}\n" + "-" * 50)
         return True
 
+    smtp_host = os.environ.get("SMTP_HOST")
     resend_key = os.environ.get("RESEND_API_KEY")
     sendgrid_key = os.environ.get("SENDGRID_API_KEY")
-    smtp_host = os.environ.get("SMTP_HOST")
     from_email = os.environ.get("FROM_EMAIL", "noreply@deadmanswitch.local")
 
-    if resend_key:
-        return send_email_resend(resend_key, from_email, to_email, subject, body_text)
-    elif sendgrid_key:
-        return send_email_sendgrid(sendgrid_key, from_email, to_email, subject, body_text)
-    elif smtp_host:
+    # 1. Primary backend: Direct SMTP (e.g. Gmail App Password, zero domain restrictions)
+    if smtp_host:
         port = int(os.environ.get("SMTP_PORT", 587))
         user = os.environ.get("SMTP_USER", "")
         password = os.environ.get("SMTP_PASS", "")
         tls = os.environ.get("SMTP_TLS", "1") == "1"
-        return send_email_smtp(smtp_host, port, user, password, from_email, to_email, subject, body_text, tls)
-    else:
-        print(f"[!] No email provider secrets found (RESEND_API_KEY, SENDGRID_API_KEY, or SMTP_HOST).")
+        if send_email_smtp(smtp_host, port, user, password, from_email, to_email, subject, body_text, tls):
+            return True
+        print("[!] SMTP dispatch failed. Falling back to secondary backend if configured...")
+
+    # 2. Secondary backend: Resend API
+    if resend_key:
+        if send_email_resend(resend_key, from_email, to_email, subject, body_text):
+            return True
+        print("[!] Resend dispatch failed. Falling back to tertiary backend if configured...")
+
+    # 3. Tertiary backend: SendGrid API
+    if sendgrid_key:
+        if send_email_sendgrid(sendgrid_key, from_email, to_email, subject, body_text):
+            return True
+
+    if not smtp_host and not resend_key and not sendgrid_key:
+        print(f"[!] No email provider secrets found (SMTP_HOST, RESEND_API_KEY, or SENDGRID_API_KEY).")
         print(f"[!] Emulating email delivery in dry-run mode for {to_email}:")
         print(f"Subject: {subject}\n{body_text}\n")
         return True
+
+    print(f"[!] All configured email backends failed to deliver to {to_email}.")
+    return False
 
 
 def evaluate_inactivity(
     latest_commit_ts: int,
     current_ts: int,
+    warning_threshold_days: Optional[float] = None,
+    trigger_threshold_days: Optional[float] = None,
 ) -> Tuple[str, float]:
     """
     Computes inactivity days and categorizes into:
-    - 'HEALTHY' (< 7 days)
-    - 'WARNING' (7 to 29.99 days)
-    - 'TRIGGERED' (>= 30 days)
+    - 'HEALTHY' (< WARNING_THRESHOLD_DAYS)
+    - 'WARNING' (WARNING_THRESHOLD_DAYS to TRIGGER_THRESHOLD_DAYS - epsilon)
+    - 'TRIGGERED' (>= TRIGGER_THRESHOLD_DAYS)
     """
+    w_thresh = warning_threshold_days if warning_threshold_days is not None else WARNING_THRESHOLD_DAYS
+    t_thresh = trigger_threshold_days if trigger_threshold_days is not None else TRIGGER_THRESHOLD_DAYS
+
     diff_seconds = max(0, current_ts - latest_commit_ts)
     days = diff_seconds / SECONDS_PER_DAY
 
-    if days < WARNING_THRESHOLD_DAYS:
+    if days < w_thresh:
         return "HEALTHY", days
-    elif days < TRIGGER_THRESHOLD_DAYS:
+    elif days < t_thresh:
         return "WARNING", days
     else:
         return "TRIGGERED", days
@@ -244,20 +295,29 @@ def run_evaluation(
     current_ts = override_now if override_now is not None else int(time.time())
     commit_ts = override_commit_ts if override_commit_ts is not None else get_latest_commit_timestamp()
 
-    status, days = evaluate_inactivity(commit_ts, current_ts)
+    owner_email = os.environ.get("OWNER_EMAIL", "")
+    cf_worker_url = os.environ.get("CF_WORKER_URL", "")
+    cf_status_token = os.environ.get("CF_STATUS_TOKEN", "")
+
+    # Multi-cloud redundancy: cross-reference Git commit with Cloudflare KV heartbeat
+    effective_ts = commit_ts
+    if override_commit_ts is None and cf_worker_url:
+        kv_ts = fetch_worker_last_heartbeat(cf_worker_url, cf_status_token)
+        if kv_ts and kv_ts > effective_ts:
+            print(f"[*] Cloudflare KV heartbeat ({kv_ts}) is newer than Git commit ({commit_ts}).")
+            print(f"[*] Multi-cloud redundancy active: using Cloudflare KV timestamp.")
+            effective_ts = kv_ts
+
+    status, days = evaluate_inactivity(effective_ts, current_ts)
 
     print("=" * 65)
     print(" DEAD MAN'S SWITCH - SYSTEM EVALUATION")
     print("=" * 65)
-    print(f"Latest Commit Timestamp: {commit_ts} ({time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(commit_ts))})")
+    print(f"Effective Last Activity: {effective_ts} ({time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(effective_ts))})")
     print(f"Current Evaluator Time:  {current_ts} ({time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(current_ts))})")
     print(f"Inactivity Duration:     {days:.2f} days")
     print(f"Evaluation Status:       [{status}]")
     print("=" * 65)
-
-    owner_email = os.environ.get("OWNER_EMAIL", "")
-    cf_worker_url = os.environ.get("CF_WORKER_URL", "")
-    cf_status_token = os.environ.get("CF_STATUS_TOKEN", "")
     portal_url = os.environ.get("PORTAL_URL", "https://your-domain.pages.dev")
     ping_url = os.environ.get("HEARTBEAT_URL", f"{cf_worker_url.rstrip('/')}/ping?token={os.environ.get('HEARTBEAT_SECRET', '')}")
 
@@ -266,47 +326,53 @@ def run_evaluation(
         print(f"[OK] Heartbeat active. Inactivity is {days:.2f} days (< 7.00 days). Silent exit.")
         return 0
 
-    # Case 2: Warning (7 to 29.99 days)
+    # Case 2: Warning (e.g. 1 to 3.99 days / 3 rappels quotidiens)
     if status == "WARNING":
         print(f"[!] Warning state active: {days:.2f} days of inactivity.")
         if not owner_email:
             print("[!] Warning: OWNER_EMAIL environment variable is not set. Cannot send warning reminder.")
             return 0
 
-        subject = f"[URGENT] Dead Man's Switch Warning: {days:.1f} Days Inactive"
+        rappel_num = min(3, max(1, int(days)))
+        subject = f"[Rappel {rappel_num}/3] Dead Man's Switch - Synchronisation requise"
         body = (
-            f"Hello,\n\n"
-            f"This is an automated alert from your autonomous Dead Man's Switch system.\n\n"
-            f"No heartbeat has been registered for {days:.1f} days.\n"
-            f"The system is configured to trigger payload release after {TRIGGER_THRESHOLD_DAYS:.0f} days of inactivity.\n\n"
-            f"To check in and reset your heartbeat timer, simply visit your secret ping URL:\n"
+            f"Bonjour,\n\n"
+            f"Ceci est le rappel quotidien #{rappel_num}/3 de votre Dead Man's Switch.\n\n"
+            f"Aucun check-in n'a été enregistré depuis {days:.1f} jour(s).\n\n"
+            f"Pour réinitialiser votre chronomètre et confirmer votre activité, cliquez simplement sur votre lien de synchronisation :\n"
             f"{ping_url}\n\n"
-            f"If you do not check in within {TRIGGER_THRESHOLD_DAYS - days:.1f} days, alert emails with access "
-            f"instructions will be dispatched to your designated recipients.\n\n"
-            f"Stay safe,\nYour Dead Man's Switch Engine"
+            f"Attention : au bout de 3 rappels quotidiens restés sans réponse (après {TRIGGER_THRESHOLD_DAYS:.0f} jours sans check-in), "
+            f"le système déclenchera automatiquement la diffusion (spread) des accès à vos destinataires.\n\n"
+            f"Bonne journée,\nVotre Dead Man's Switch"
         )
         dispatch_notification(owner_email, subject, body, dry_run=dry_run)
         return 0
 
-    # Case 3: Triggered (>= 30 days)
+    # Case 3: Triggered (>= TRIGGER_THRESHOLD_DAYS)
     print(f"[CRITICAL] Dead Man's Switch TRIGGERED! Inactivity {days:.2f} days >= {TRIGGER_THRESHOLD_DAYS} days.")
 
     # 1. Fetch seen status from Cloudflare Worker KV
     seen_map = fetch_worker_status(cf_worker_url, cf_status_token)
     print(f"[*] Cloudflare KV reported {len(seen_map)} acknowledged recipient(s): {list(seen_map.keys())}")
 
-    # 2. Read public vault to identify recipients
-    if not os.path.exists(vault_path):
-        print(f"[!] Critical Error: Vault file '{vault_path}' does not exist.")
-        return 1
+    # 2. Read recipients list (prefer vault_path if it has recipients, else private recipients.json)
+    recipients = []
+    if vault_path and os.path.exists(vault_path):
+        try:
+            with open(vault_path, "r", encoding="utf-8") as f:
+                vdata = json.load(f)
+                recipients = vdata.get("recipients", [])
+        except Exception:
+            pass
 
-    with open(vault_path, "r", encoding="utf-8") as f:
-        vault_data = json.load(f)
+    if not recipients and os.path.exists("recipients.json"):
+        with open("recipients.json", "r", encoding="utf-8") as f:
+            rdata = json.load(f)
+            recipients = rdata if isinstance(rdata, list) else rdata.get("recipients", [])
 
-    recipients = vault_data.get("recipients", [])
     if not recipients:
-        print("[!] No recipients configured in vault.")
-        return 0
+        print(f"[!] Critical Error: No recipients configured in recipients.json or {vault_path}.")
+        return 1
 
     unseen_count = 0
     acknowledged_count = 0
