@@ -23,7 +23,28 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 ITERATIONS_1 = 100_000
 ITERATIONS_2 = 250_000
+PBKDF2_ITERATIONS = ITERATIONS_2
 KEY_LENGTH = 32  # 256 bits
+
+
+def encrypt_payload(plaintext: str, passphrase: str) -> Tuple[str, str, str, str]:
+    """Chiffre un payload (compatibilité tests)."""
+    salt = os.urandom(16)
+    iv = os.urandom(12)
+    key = derive_key(passphrase, salt, ITERATIONS_2)
+    raw_ct = AESGCM(key).encrypt(iv, plaintext.encode("utf-8"), None)
+    proof_hex = calculate_proof(passphrase, salt)
+    return salt.hex(), iv.hex(), raw_ct.hex(), proof_hex
+
+
+def decrypt_payload(salt_hex: str, iv_hex: str, ct_hex: str, passphrase: str) -> str:
+    """Déchiffre un payload (compatibilité tests)."""
+    salt = bytes.fromhex(salt_hex)
+    iv = bytes.fromhex(iv_hex)
+    raw_ct = bytes.fromhex(ct_hex)
+    key = derive_key(passphrase, salt, ITERATIONS_2)
+    dec = AESGCM(key).decrypt(iv, raw_ct, None)
+    return dec.decode("utf-8")
 
 
 def norm(s: str) -> str:
