@@ -128,8 +128,12 @@ def send_email_resend(api_key: str, from_addr: str, to_addr: str, subject: str, 
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    sender = from_addr if from_addr and "@" in from_addr else "onboarding@resend.dev"
+    if "notifications@resend.dev" in sender:
+        sender = "onboarding@resend.dev"
+
     payload = {
-        "from": from_addr or "Dead Man's Switch <notifications@resend.dev>",
+        "from": sender,
         "to": [to_addr],
         "subject": subject,
         "text": body_text,
