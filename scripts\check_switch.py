@@ -331,21 +331,15 @@ def run_evaluation(
         unseen_count += 1
         access_url = f"{portal_url.rstrip('/')}/?recipient={r_id}"
 
-        subject = f"[CONFIDENTIAL] Dead Man's Switch : Casier sécurisé disponible pour {r_name}"
+        subject = f"Message confidentiel pour {r_name}"
         body = (
             f"Bonjour {r_name},\n\n"
-            f"Ceci est une notification automatique du système Dead Man's Switch.\n"
-            f"Le système s'est déclenché suite à une période prolongée sans signe de vie (> 30 jours).\n\n"
-            f"Un message confidentiel chiffré vous attend dans votre casier sécurisé personnel.\n\n"
-            f"ACCÈS À VOTRE CASIER SÉCURISÉ :\n"
-            f"1. Rendez-vous sur la page publique des casiers :\n"
-            f"   {portal_url}\n\n"
-            f"2. Cliquez sur votre casier : '{r_name}' (ou accédez-y directement via : {access_url})\n"
-            f"3. Saisissez votre code / phrase secrète convenue pour déverrouiller le casier.\n"
-            f"4. Votre message s'affichera immédiatement en clair sur votre écran.\n\n"
-            f"NOTE : Une fois le casier ouvert, une preuve de réception chiffrée est transmise automatiquement "
-            f"pour désactiver tout nouvel email de relance.\n\n"
-            f"Portail public des casiers : {portal_url}\n"
+            f"Un message confidentiel vous a été laissé à l'adresse suivante :\n"
+            f"{portal_url}\n\n"
+            f"Pour y accéder :\n"
+            f"1. Ouvrez le lien : {portal_url}\n"
+            f"2. Écrivez votre prénom ('{r_name.split()[0]}')\n"
+            f"3. Cliquez sur votre nom et saisissez votre mot de passe pour lire le document.\n"
         )
 
         print(f"[+] Sending payload release notification to '{r_name}' <{r_email}>...")

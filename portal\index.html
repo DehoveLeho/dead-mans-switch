@@ -1,151 +1,214 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ARCHIVES &bull; Dead Man's Switch</title>
-  <meta name="description" content="Autonomous Zero-Knowledge Vault. Conception inspirée de Pacôme Pertant.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title></title>
+<style>
+:root{--bg:#efeee9;--fg:#111;--mut:#777;--ac:#ff4d1c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--fg:#efeee9;--mut:#888}}
+:root[data-theme="dark"]{--bg:#111110;--fg:#efeee9;--mut:#888}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:16px/1.55 Georgia,"Times New Roman",serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:24px;overflow:auto}
+button,input{font:inherit;color:inherit}
+h1{font-size:clamp(34px,8vw,84px);font-weight:400;letter-spacing:-.03em;line-height:1;text-align:center;font-style:italic}
+.sub{color:var(--mut);font-size:14px}
+.box{width:min(480px,100%);border-bottom:1px solid var(--fg)}
+.box input{width:100%;background:none;border:0;outline:0;padding:10px 0;font-size:20px;text-align:center}
+#out{min-height:150px;width:min(480px,100%);display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.hit{background:none;border:0;cursor:pointer;font-size:22px;border-bottom:1px solid transparent;transition:border-color .2s,color .2s;animation:in .4s}
+.hit:hover{border-color:var(--ac);color:var(--ac)}
+.pw{display:flex;gap:8px;width:min(360px,100%)}
+.pw input{flex:1;border:0;border-bottom:1px solid var(--fg);background:none;outline:0;padding:8px 2px;min-width:0;text-align:center}
+.pw button,#close,.back{border:1px solid var(--fg);background:none;border-radius:99px;padding:7px 16px;cursor:pointer;font-size:14px}
+.pw button:hover,#close:hover{background:var(--fg);color:var(--bg)}
+.back{border:0;color:var(--mut)}
+.msg{color:var(--mut);font-size:14px;min-height:1.4em}
+.msg.err{color:var(--ac)}
+.hint{font-style:italic;max-width:38ch}
+@keyframes in{from{opacity:0;transform:translateY(8px)}}
+#view{position:fixed;inset:0;z-index:10;background:var(--bg);display:none;overflow:auto;padding:70px 22px 60px}
+#view.on{display:block;animation:in .6s}
+#doc{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+#doc h2{font-size:clamp(28px,6vw,52px);font-weight:400;letter-spacing:-.02em;line-height:1.05;font-style:italic}
+#doc p{white-space:pre-wrap;font-size:18px}
+#doc img,#doc video{width:100%;border-radius:6px;display:block}
+#doc a{color:var(--ac);word-break:break-all}
+#close{position:fixed;top:calc(18px + env(safe-area-inset-top,0px));right:22px;background:var(--bg)}
+</style>
 </head>
 <body>
+<p class="sub">écris ton prénom</p>
+<form class="box" id="f" autocomplete="off"><input id="q" aria-label="prénom" autocapitalize="words" spellcheck="false"></form>
+<div id="out"></div>
+<div id="view"><button id="close">fermer</button><div id="doc"></div></div>
+<script>
+let D = null;
+const $ = s => document.querySelector(s), te = new TextEncoder(), b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim().replace(/\s+/g," ");
+const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,"0")).join("");
+const hashName = async n => hex(await crypto.subtle.digest("SHA-256", te.encode((D ? D.salt : "") + n)));
 
-  <!-- Film Grain Overlay -->
-  <div class="film-grain"></div>
+async function key(p, s, it, u) {
+  const km = await crypto.subtle.importKey("raw", te.encode(p), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: b64(s), iterations: it, hash: "SHA-256" },
+    km,
+    { name: "AES-GCM", length: 256 },
+    false,
+    [u]
+  );
+}
 
-  <!-- Custom Inertia Cursor -->
-  <div id="customCursor" class="custom-cursor"></div>
-  <div id="cursorTrail" class="cursor-trail"></div>
+async function dec(p, s, it, iv, ct) {
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: b64(iv) },
+    await key(p, s, it, "decrypt"),
+    b64(ct)
+  )));
+}
 
-  <!-- Floating Cursor Preview Image for List View -->
-  <div id="cursorPreview" class="cursor-image-preview">
-    <img id="cursorPreviewImg" src="" alt="Aperçu">
-  </div>
+async function sendAck(workerUrl, recipientId, passphrase, s2) {
+  if (!workerUrl || !recipientId) return;
+  try {
+    const pBytes = te.encode(passphrase);
+    const sBytes = b64(s2);
+    const combined = new Uint8Array(pBytes.length + sBytes.length);
+    combined.set(pBytes, 0);
+    combined.set(sBytes, pBytes.length);
+    const proofHex = hex(await crypto.subtle.digest("SHA-256", combined));
 
-  <!-- Top Navigation Header -->
-  <header class="header-bar">
-    <div class="brand-col">
-      <span class="brand-title">DMS // ARCHIVES</span>
-      <span class="brand-sub">AUTONOMOUS VAULT &bull; ZERO-KNOWLEDGE</span>
-    </div>
+    await fetch(`${workerUrl.replace(/\/+$/, '')}/ack`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient_id: recipientId, proof: proofHex }),
+    });
+  } catch (_) {}
+}
 
-    <div class="status-center">
-      <span class="status-dot"></span>
-      <span id="realtimeClock">PARIS 00:00:00 CET</span>
-    </div>
+let seq = 0;
+async function search() {
+  if (!D) return;
+  const out = $("#out"), my = ++seq, first = norm($("#q").value).split(" ")[0] || "";
+  if (first.length < 2) { out.innerHTML = ""; return; }
+  const h = await hashName(first);
+  if (my !== seq) return;
+  const res = [];
+  for (const e of (D.e || []).filter(x => x.h === h)) {
+    try {
+      res.push({ e, i: await dec(first, e.s1, D.i1, e.iv1, e.nb) });
+    } catch (_) {}
+  }
+  if (my !== seq) return;
+  out.innerHTML = "";
+  if (!res.length) {
+    out.innerHTML = '<p class="msg">rien pour ce prénom.</p>';
+    return;
+  }
+  res.forEach(r => {
+    const b = document.createElement("button");
+    b.className = "hit";
+    b.textContent = r.i.name;
+    b.onclick = () => ask(r);
+    out.appendChild(b);
+  });
+}
 
-    <div class="actions-col">
-      <button type="button" id="soundToggleBtn" class="btn-toggle-sound sound-on">[SOUND: ON]</button>
-      <div class="nav-mode-switch">
-        <button type="button" id="modeSpatialBtn" class="mode-btn active">SPATIAL</button>
-        <button type="button" id="modeListBtn" class="mode-btn">INDEX</button>
-      </div>
-    </div>
-  </header>
+function ask(r) {
+  const out = $("#out");
+  out.innerHTML = "";
+  const el = (t, c, x) => {
+    const n = document.createElement(t);
+    if (c) n.className = c;
+    if (x) n.textContent = x;
+    out.appendChild(n);
+    return n;
+  };
+  el("p", "hit", r.i.name).style.cursor = "default";
+  if (r.i.hint) el("p", "hint", "indice : " + r.i.hint);
+  const f = el("form", "pw");
+  f.innerHTML = '<input type="password" placeholder="mot de passe" aria-label="mot de passe"><button>ouvrir</button>';
+  const m = el("p", "msg"), i = f.querySelector("input");
+  i.focus();
+  const bk = el("button", "back", "← retour");
+  bk.onclick = search;
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    m.className = "msg";
+    m.textContent = "…";
+    try {
+      const doc = await dec(i.value, r.e.s2, D.i2, r.e.iv2, r.e.ct);
+      show(doc);
+      sendAck(D.worker_url, r.i.id || r.e.id, i.value, r.e.s2);
+      i.value = "";
+      m.textContent = "";
+    } catch (_) {
+      m.className = "msg err";
+      m.textContent = "mot de passe incorrect.";
+      i.select();
+    }
+  };
+}
 
-  <!-- Hero Stage -->
-  <main class="hero-stage">
-    <div class="stage-header">
-      <div class="stage-left">
-        <h1 class="hero-main-title">
-          VAULT <span class="italic-serif">Archives</span>
-        </h1>
-      </div>
-      <div class="stage-meta">
-        <div id="vaultCountLabel">2 PERSONNES ENREGISTRÉES</div>
-        <div>AES-256-GCM // PBKDF2 250K</div>
-      </div>
-    </div>
+function show(c) {
+  const d = $("#doc");
+  d.innerHTML = "";
+  if (c.title) {
+    const h = document.createElement("h2");
+    h.textContent = c.title;
+    d.appendChild(h);
+  }
+  for (const b of c.blocks || []) {
+    let n;
+    if (b.t === "text") {
+      n = document.createElement("p");
+      n.textContent = b.v;
+    } else if (b.t === "img") {
+      n = document.createElement("img");
+      n.alt = "";
+      n.src = b.src;
+    } else if (b.t === "video") {
+      n = document.createElement("video");
+      n.controls = true;
+      n.src = b.src;
+    } else if (b.t === "link" && /^https?:\/\//.test(b.url)) {
+      n = document.createElement("a");
+      n.href = b.url;
+      n.target = "_blank";
+      n.rel = "noopener noreferrer";
+      n.textContent = b.label || b.url;
+    }
+    if (n) d.appendChild(n);
+  }
+  $("#view").classList.add("on");
+  $("#view").scrollTop = 0;
+}
 
-    <!-- Presentation Mode 1: 3D Spatial Perspective Tiles -->
-    <section id="spatialView" class="spatial-tiles-view">
-      <!-- Populated dynamically via app.js -->
-    </section>
+$("#close").onclick = () => $("#view").classList.remove("on");
+addEventListener("keydown", e => { if (e.key === "Escape") $("#view").classList.remove("on"); });
+$("#f").onsubmit = e => { e.preventDefault(); search(); };
 
-    <!-- Presentation Mode 2: Editorial List View with Floating Preview -->
-    <section id="listView" class="editorial-list-view">
-      <ul id="listContainer" class="list-container">
-        <!-- Populated dynamically via app.js -->
-      </ul>
-    </section>
-  </main>
+let tm;
+$("#q").oninput = () => { clearTimeout(tm); tm = setTimeout(search, 200); };
 
-  <!-- Gateway Modal (Unlock Prompt & Shockwave Explosion & Revealed Document) -->
-  <div id="gatewayStage" class="gateway-modal-stage" role="dialog" aria-modal="true" aria-hidden="true">
-    <button type="button" id="closeGatewayBtn" class="btn-close-gateway">[ESC / FERMER]</button>
+async function loadVault() {
+  try {
+    const res = await fetch("vault.json");
+    D = await res.json();
+    const params = new URLSearchParams(window.location.search);
+    const qName = params.get("recipient") || params.get("q");
+    if (qName) {
+      $("#q").value = qName;
+      search();
+    }
+  } catch (err) {
+    $("#out").innerHTML = '<p class="msg err">erreur chargement coffre.</p>';
+  }
+}
 
-    <!-- Visual Explosion Shockwave Effects -->
-    <div id="fxStage" class="fx-stage">
-      <div class="fx-flash"></div>
-      <div class="fx-shockwave"></div>
-    </div>
-
-    <!-- 1. Code Input Screen -->
-    <div id="unlockBox" class="unlock-box">
-      <img id="dialogPhoto" class="dialog-hero-photo" src="" alt="Portrait">
-      <h2 id="dialogName" class="dialog-person-name">NOM DU DESTINATAIRE</h2>
-      <div id="dialogId" class="dialog-ref-tag">ARCHIVE CONFIDENTIELLE</div>
-
-      <div id="dialogHint" class="dialog-hint-block" style="display: none;"></div>
-
-      <div class="code-input-container">
-        <input 
-          type="password" 
-          id="codeField" 
-          class="code-field" 
-          placeholder="CODE / PHRASE SECRÈTE" 
-          autocomplete="off" 
-          spellcheck="false"
-        >
-      </div>
-
-      <button type="button" id="btnDetonate" class="btn-detonate-unlock">
-        DÉVERROUILLER L'ARCHIVE
-      </button>
-
-      <div id="dialogError" class="dialog-error-msg">PHRASE SECRÈTE INCORRECTE</div>
-    </div>
-
-    <!-- 2. The Unlocked Confidential Document (Appears after the explosion) -->
-    <div id="documentStage" class="document-stage">
-      <div class="doc-top-bar">
-        <div>
-          <span class="doc-stamp">&#x2714; ARCHIVE DÉVERROUILLÉE</span>
-          <h2 id="docRecipientName" class="doc-main-headline">DOCUMENT CONFIDENTIEL</h2>
-          <div id="docMetaSub" class="doc-meta-sub">DÉCHIFFRÉ EN MÉMOIRE BROWSER &bull; AES-256-GCM</div>
-        </div>
-        <div class="doc-button-bar">
-          <button type="button" id="copyDocBtn" class="btn-doc">
-            <span>COPIER LE TEXTE</span>
-          </button>
-          <button type="button" id="downloadDocBtn" class="btn-doc">
-            <span>TÉLÉCHARGER (.TXT)</span>
-          </button>
-          <button type="button" id="closeDocBtn" class="btn-doc">
-            <span>FERMER</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Plain Text Content -->
-      <article id="docBody" class="doc-unlocked-body"></article>
-
-      <div class="doc-bottom-proof">
-        <div><strong>PREUVE ZÉRO-CONNAISSANCE :</strong> <span id="docProofSpan" style="color: var(--accent-gold);"></span></div>
-        <div><strong>INGRESS CLOUDFLARE :</strong> <span id="docAckSpan">Confirmation transmise...</span></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bottom Ticker -->
-  <footer class="footer-bar">
-    <div>PACÔME PERTANT ARCHITECTURE AESTHETICS</div>
-    <div>DEAD MAN'S SWITCH &bull; 100% CLIENT-SIDE SUBTLECRYPTO</div>
-    <div>ZERO-KNOWLEDGE VERIFIED</div>
-  </footer>
-
-  <script src="app.js"></script>
+loadVault();
+$("#q").focus();
+</script>
 </body>
 </html>

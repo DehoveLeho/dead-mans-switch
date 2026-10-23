@@ -1,0 +1,7 @@
+{
+  "cf_worker_url": "https://dms-ingress.dehoveleho.workers.dev",
+  "heartbeat_secret": "ffee7a844d9a450d206694753a5d878e6ca19a66b5e00cd7",
+  "status_token": "014ffcb952abb44050e88937fc2828be95c615dcd296b716",
+  "github_owner": "DehoveLeho",
+  "github_repo": "dead-mans-switch"
+}
