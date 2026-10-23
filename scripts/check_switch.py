@@ -220,26 +220,40 @@ def dispatch_notification(
         print(f"[DRY-RUN] Body:\n{body_text}\n" + "-" * 50)
         return True
 
+    smtp_host = os.environ.get("SMTP_HOST")
     resend_key = os.environ.get("RESEND_API_KEY")
     sendgrid_key = os.environ.get("SENDGRID_API_KEY")
-    smtp_host = os.environ.get("SMTP_HOST")
     from_email = os.environ.get("FROM_EMAIL", "noreply@deadmanswitch.local")
 
-    if resend_key:
-        return send_email_resend(resend_key, from_email, to_email, subject, body_text)
-    elif sendgrid_key:
-        return send_email_sendgrid(sendgrid_key, from_email, to_email, subject, body_text)
-    elif smtp_host:
+    # 1. Primary backend: Direct SMTP (e.g. Gmail App Password, zero domain restrictions)
+    if smtp_host:
         port = int(os.environ.get("SMTP_PORT", 587))
         user = os.environ.get("SMTP_USER", "")
         password = os.environ.get("SMTP_PASS", "")
         tls = os.environ.get("SMTP_TLS", "1") == "1"
-        return send_email_smtp(smtp_host, port, user, password, from_email, to_email, subject, body_text, tls)
-    else:
-        print(f"[!] No email provider secrets found (RESEND_API_KEY, SENDGRID_API_KEY, or SMTP_HOST).")
+        if send_email_smtp(smtp_host, port, user, password, from_email, to_email, subject, body_text, tls):
+            return True
+        print("[!] SMTP dispatch failed. Falling back to secondary backend if configured...")
+
+    # 2. Secondary backend: Resend API
+    if resend_key:
+        if send_email_resend(resend_key, from_email, to_email, subject, body_text):
+            return True
+        print("[!] Resend dispatch failed. Falling back to tertiary backend if configured...")
+
+    # 3. Tertiary backend: SendGrid API
+    if sendgrid_key:
+        if send_email_sendgrid(sendgrid_key, from_email, to_email, subject, body_text):
+            return True
+
+    if not smtp_host and not resend_key and not sendgrid_key:
+        print(f"[!] No email provider secrets found (SMTP_HOST, RESEND_API_KEY, or SENDGRID_API_KEY).")
         print(f"[!] Emulating email delivery in dry-run mode for {to_email}:")
         print(f"Subject: {subject}\n{body_text}\n")
         return True
+
+    print(f"[!] All configured email backends failed to deliver to {to_email}.")
+    return False
 
 
 def evaluate_inactivity(
