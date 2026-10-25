@@ -26,49 +26,49 @@ from scripts.check_switch import (
 class TestThresholdEvaluation:
     def test_inactivity_healthy_threshold(self):
         now = 1700000000
-        # 3 days ago
-        commit_ts = int(now - 3.0 * SECONDS_PER_DAY)
+        # 0.5 days ago (< 1.0 day)
+        commit_ts = int(now - 0.5 * SECONDS_PER_DAY)
         status, days = evaluate_inactivity(commit_ts, now)
         assert status == "HEALTHY"
-        assert pytest.approx(days, 0.01) == 3.0
+        assert pytest.approx(days, 0.01) == 0.5
 
     def test_inactivity_warning_threshold(self):
         now = 1700000000
-        # 14 days ago
-        commit_ts = int(now - 14.0 * SECONDS_PER_DAY)
+        # 2.0 days ago (between 1.0 and 4.0 days -> warning / 3 rappels)
+        commit_ts = int(now - 2.0 * SECONDS_PER_DAY)
         status, days = evaluate_inactivity(commit_ts, now)
         assert status == "WARNING"
-        assert pytest.approx(days, 0.01) == 14.0
+        assert pytest.approx(days, 0.01) == 2.0
 
     def test_inactivity_triggered_threshold(self):
         now = 1700000000
-        # 35 days ago
-        commit_ts = int(now - 35.0 * SECONDS_PER_DAY)
+        # 5.0 days ago (>= 4.0 days -> spread)
+        commit_ts = int(now - 5.0 * SECONDS_PER_DAY)
         status, days = evaluate_inactivity(commit_ts, now)
         assert status == "TRIGGERED"
-        assert pytest.approx(days, 0.01) == 35.0
+        assert pytest.approx(days, 0.01) == 5.0
 
     def test_boundary_values(self):
         now = 1700000000
 
-        # Exactly 6.99 days -> HEALTHY
-        commit_6_99 = int(now - 6.99 * SECONDS_PER_DAY)
-        status, _ = evaluate_inactivity(commit_6_99, now)
+        # Exactly 0.99 days -> HEALTHY
+        commit_0_99 = int(now - 0.99 * SECONDS_PER_DAY)
+        status, _ = evaluate_inactivity(commit_0_99, now)
         assert status == "HEALTHY"
 
-        # Exactly 7.00 days -> WARNING
-        commit_7_00 = int(now - 7.00 * SECONDS_PER_DAY)
-        status, _ = evaluate_inactivity(commit_7_00, now)
+        # Exactly 1.00 days -> WARNING
+        commit_1_00 = int(now - 1.00 * SECONDS_PER_DAY)
+        status, _ = evaluate_inactivity(commit_1_00, now)
         assert status == "WARNING"
 
-        # Exactly 29.99 days -> WARNING
-        commit_29_99 = int(now - 29.99 * SECONDS_PER_DAY)
-        status, _ = evaluate_inactivity(commit_29_99, now)
+        # Exactly 3.99 days -> WARNING
+        commit_3_99 = int(now - 3.99 * SECONDS_PER_DAY)
+        status, _ = evaluate_inactivity(commit_3_99, now)
         assert status == "WARNING"
 
-        # Exactly 30.00 days -> TRIGGERED
-        commit_30_00 = int(now - 30.00 * SECONDS_PER_DAY)
-        status, _ = evaluate_inactivity(commit_30_00, now)
+        # Exactly 4.00 days -> TRIGGERED
+        commit_4_00 = int(now - 4.00 * SECONDS_PER_DAY)
+        status, _ = evaluate_inactivity(commit_4_00, now)
         assert status == "TRIGGERED"
 
 
@@ -162,7 +162,7 @@ class TestSwitchEvaluationWorkflow:
     def test_run_evaluation_warning_notifies_owner_only(self, mock_dispatch, sample_vault, monkeypatch):
         monkeypatch.setenv("OWNER_EMAIL", "owner@example.com")
         now = 1700000000
-        commit_ts = int(now - 15 * SECONDS_PER_DAY)
+        commit_ts = int(now - 2 * SECONDS_PER_DAY)
 
         exit_code = run_evaluation(
             vault_path=sample_vault,
@@ -177,7 +177,7 @@ class TestSwitchEvaluationWorkflow:
         to_email = args[0]
         subject = args[1]
         assert to_email == "owner@example.com"
-        assert "Dead Man's Switch Warning" in subject
+        assert "Dead Man's Switch" in subject
 
     @patch("scripts.check_switch.fetch_worker_status")
     @patch("scripts.check_switch.dispatch_notification")

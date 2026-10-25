@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>✲</title>
+<title></title>
 <style>
 :root{--bg:#efeee9;--fg:#111;--mut:#777;--ac:#ff4d1c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--fg:#efeee9;--mut:#888}}
@@ -194,7 +194,7 @@ $("#q").oninput = () => { clearTimeout(tm); tm = setTimeout(search, 200); };
 
 async function loadVault() {
   try {
-    const res = await fetch("vault.json");
+    const res = await fetch("vault.json?t=" + Date.now());
     D = await res.json();
     const params = new URLSearchParams(window.location.search);
     const qName = params.get("recipient") || params.get("q");

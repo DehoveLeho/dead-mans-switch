@@ -113,8 +113,6 @@ def encrypt_entry(
 
     public_entry = {
         "id": recipient_id.strip().lower(),
-        "name": full_name.strip(),
-        "email": email.strip().lower(),
         "h": h,
         "s1": base64.b64encode(s1).decode("utf-8"),
         "iv1": base64.b64encode(iv1).decode("utf-8"),
@@ -170,17 +168,13 @@ def save_vault(
     os.makedirs(os.path.dirname(os.path.abspath(output_vault_path)), exist_ok=True)
     os.makedirs(os.path.dirname(os.path.abspath(output_kv_path)), exist_ok=True)
 
-    # Schéma compatible ✲
+    # Schéma public : Zero-Knowledge (aucun nom ni email en clair dans vault.json)
     vault_data = {
         "salt": global_salt,
         "i1": ITERATIONS_1,
         "i2": ITERATIONS_2,
         "worker_url": worker_url,
         "e": public_entries,
-        "recipients": [
-            {"id": kv["recipient_id"], "name": kv["name"], "email": kv["email"]}
-            for kv in kv_entries
-        ],
     }
 
     with open(output_vault_path, "w", encoding="utf-8") as f:
@@ -201,8 +195,9 @@ def save_vault(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Générateur de coffre-fort ✲ Dead Man's Switch")
-    parser.add_argument("--config", "-c", default="recipients.example.json", help="Fichier de configuration")
+    default_config = "recipients.json" if os.path.exists("recipients.json") else "recipients.example.json"
+    parser = argparse.ArgumentParser(description="Générateur de coffre-fort Dead Man's Switch")
+    parser.add_argument("--config", "-c", default=default_config, help="Fichier de configuration")
     parser.add_argument("--output", "-o", default="portal/vault.json", help="Chemin de sortie vault.json")
     parser.add_argument("--kv-output", "-k", default="worker/proofs_seed.json", help="Chemin de sortie KV")
     parser.add_argument("--worker-url", "-w", default="https://dms-ingress.dehoveleho.workers.dev", help="URL du Worker")

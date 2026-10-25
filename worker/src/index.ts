@@ -1,7 +1,7 @@
 /**
  * worker/src/index.ts
  * ====================
- * Contrôleur Cloudflare Worker avec la D.A. ✲ (TypeScript)
+ * Contrôleur Cloudflare Worker : Heartbeat épuré à l'extrême (TypeScript).
  */
 
 export interface Env {
@@ -72,7 +72,7 @@ export default {
         }
       }
 
-      const isSyncAction = url.searchParams.get("sync") === "1" || request.method === "POST";
+      const isSyncAction = request.method === "POST";
       let justSynced = false;
       let githubTriggered = false;
 
@@ -131,28 +131,26 @@ export default {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>✲</title>
+<title></title>
 <style>
 :root{--bg:#efeee9;--fg:#111;--mut:#777;--ac:#ff4d1c;box-sizing:border-box}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--fg:#efeee9;--mut:#888}}
 :root[data-theme="dark"]{--bg:#111110;--fg:#efeee9;--mut:#888}
 *{box-sizing:border-box;margin:0}
 html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font:16px/1.55 Georgia,"Times New Roman",serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:24px;text-align:center}
-h1{font-size:clamp(34px,8vw,84px);font-weight:400;letter-spacing:-.03em;line-height:1;font-style:italic}
-.sub{color:var(--mut);font-size:14px}
-.time{font-size:24px;font-style:italic;margin:6px 0}
-a.btn{border:1px solid var(--fg);background:none;color:inherit;border-radius:99px;padding:8px 22px;cursor:pointer;font-size:14px;text-decoration:none;transition:background .2s,color .2s}
-a.btn:hover{background:var(--fg);color:var(--bg)}
+body{background:var(--bg);color:var(--fg);font:16px/1.55 Georgia,"Times New Roman",serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center}
+.time{font-size:clamp(22px,5vw,36px);font-style:italic;margin-bottom:8px}
+button.btn{border:1px solid var(--fg);background:none;color:inherit;border-radius:99px;padding:8px 24px;cursor:pointer;font-size:15px;text-decoration:none;transition:background .2s,color .2s;font-family:inherit;-webkit-appearance:none;outline:none}
+button.btn:hover{background:var(--fg);color:var(--bg)}
 .ok{color:var(--ac);font-size:14px}
 </style>
 </head>
 <body>
-<h1>✲</h1>
-<p class="sub">synchronisation de session</p>
 <p class="time">${elapsedText}</p>
-${justSynced ? '<p class="ok">synchronisé à l\'instant.</p>' : ''}
-<a href="/ping?token=${token}&sync=1" class="btn">${justSynced ? 're-synchroniser' : 'synchroniser'}</a>
+${justSynced ? '<p class="ok">synchronisé.</p>' : ''}
+<form method="POST" action="/ping?token=${token}">
+  <button type="submit" class="btn">${justSynced ? 're-synchroniser' : 'synchroniser'}</button>
+</form>
 </body>
 </html>`);
       }
@@ -219,6 +217,6 @@ ${justSynced ? '<p class="ok">synchronisé à l\'instant.</p>' : ''}
       return jsonResponse({ status: "ok", last_heartbeat: lastHeartbeat, seen_recipients: recipients });
     }
 
-    return jsonResponse({ service: "✲", status: "online" });
+    return jsonResponse({ service: "sync", status: "online" });
   },
 };

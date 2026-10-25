@@ -27,8 +27,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-WARNING_THRESHOLD_DAYS = 7.0
-TRIGGER_THRESHOLD_DAYS = 30.0
+WARNING_THRESHOLD_DAYS = float(os.environ.get("WARNING_THRESHOLD_DAYS") or "1.0")
+TRIGGER_THRESHOLD_DAYS = float(os.environ.get("TRIGGER_THRESHOLD_DAYS") or "4.0")
 SECONDS_PER_DAY = 86400.0
 
 
@@ -259,19 +259,24 @@ def dispatch_notification(
 def evaluate_inactivity(
     latest_commit_ts: int,
     current_ts: int,
+    warning_threshold_days: Optional[float] = None,
+    trigger_threshold_days: Optional[float] = None,
 ) -> Tuple[str, float]:
     """
     Computes inactivity days and categorizes into:
-    - 'HEALTHY' (< 7 days)
-    - 'WARNING' (7 to 29.99 days)
-    - 'TRIGGERED' (>= 30 days)
+    - 'HEALTHY' (< WARNING_THRESHOLD_DAYS)
+    - 'WARNING' (WARNING_THRESHOLD_DAYS to TRIGGER_THRESHOLD_DAYS - epsilon)
+    - 'TRIGGERED' (>= TRIGGER_THRESHOLD_DAYS)
     """
+    w_thresh = warning_threshold_days if warning_threshold_days is not None else WARNING_THRESHOLD_DAYS
+    t_thresh = trigger_threshold_days if trigger_threshold_days is not None else TRIGGER_THRESHOLD_DAYS
+
     diff_seconds = max(0, current_ts - latest_commit_ts)
     days = diff_seconds / SECONDS_PER_DAY
 
-    if days < WARNING_THRESHOLD_DAYS:
+    if days < w_thresh:
         return "HEALTHY", days
-    elif days < TRIGGER_THRESHOLD_DAYS:
+    elif days < t_thresh:
         return "WARNING", days
     else:
         return "TRIGGERED", days
@@ -316,52 +321,58 @@ def run_evaluation(
     portal_url = os.environ.get("PORTAL_URL", "https://your-domain.pages.dev")
     ping_url = os.environ.get("HEARTBEAT_URL", f"{cf_worker_url.rstrip('/')}/ping?token={os.environ.get('HEARTBEAT_SECRET', '')}")
 
-    # Case 1: Healthy (< 7 days)
+    # Case 1: Healthy (< WARNING_THRESHOLD_DAYS)
     if status == "HEALTHY":
-        print(f"[OK] Heartbeat active. Inactivity is {days:.2f} days (< 7.00 days). Silent exit.")
+        print(f"[OK] Heartbeat active. Inactivity is {days:.2f} days (< {WARNING_THRESHOLD_DAYS:.2f} days). Silent exit.")
         return 0
 
-    # Case 2: Warning (7 to 29.99 days)
+    # Case 2: Warning (e.g. 1 to 3.99 days / 3 rappels quotidiens)
     if status == "WARNING":
         print(f"[!] Warning state active: {days:.2f} days of inactivity.")
         if not owner_email:
             print("[!] Warning: OWNER_EMAIL environment variable is not set. Cannot send warning reminder.")
             return 0
 
-        subject = f"[URGENT] Dead Man's Switch Warning: {days:.1f} Days Inactive"
+        rappel_num = min(3, max(1, int(days)))
+        subject = f"[Rappel {rappel_num}/3] Dead Man's Switch - Synchronisation requise"
         body = (
-            f"Hello,\n\n"
-            f"This is an automated alert from your autonomous Dead Man's Switch system.\n\n"
-            f"No heartbeat has been registered for {days:.1f} days.\n"
-            f"The system is configured to trigger payload release after {TRIGGER_THRESHOLD_DAYS:.0f} days of inactivity.\n\n"
-            f"To check in and reset your heartbeat timer, simply visit your secret ping URL:\n"
+            f"Bonjour,\n\n"
+            f"Ceci est le rappel quotidien #{rappel_num}/3 de votre Dead Man's Switch.\n\n"
+            f"Aucun check-in n'a été enregistré depuis {days:.1f} jour(s).\n\n"
+            f"Pour réinitialiser votre chronomètre et confirmer votre activité, cliquez simplement sur votre lien de synchronisation :\n"
             f"{ping_url}\n\n"
-            f"If you do not check in within {TRIGGER_THRESHOLD_DAYS - days:.1f} days, alert emails with access "
-            f"instructions will be dispatched to your designated recipients.\n\n"
-            f"Stay safe,\nYour Dead Man's Switch Engine"
+            f"Attention : au bout de 3 rappels quotidiens restés sans réponse (après {TRIGGER_THRESHOLD_DAYS:.0f} jours sans check-in), "
+            f"le système déclenchera automatiquement la diffusion (spread) des accès à vos destinataires.\n\n"
+            f"Bonne journée,\nVotre Dead Man's Switch"
         )
         dispatch_notification(owner_email, subject, body, dry_run=dry_run)
         return 0
 
-    # Case 3: Triggered (>= 30 days)
+    # Case 3: Triggered (>= TRIGGER_THRESHOLD_DAYS)
     print(f"[CRITICAL] Dead Man's Switch TRIGGERED! Inactivity {days:.2f} days >= {TRIGGER_THRESHOLD_DAYS} days.")
 
     # 1. Fetch seen status from Cloudflare Worker KV
     seen_map = fetch_worker_status(cf_worker_url, cf_status_token)
     print(f"[*] Cloudflare KV reported {len(seen_map)} acknowledged recipient(s): {list(seen_map.keys())}")
 
-    # 2. Read public vault to identify recipients
-    if not os.path.exists(vault_path):
-        print(f"[!] Critical Error: Vault file '{vault_path}' does not exist.")
-        return 1
+    # 2. Read recipients list (prefer vault_path if it has recipients, else private recipients.json)
+    recipients = []
+    if vault_path and os.path.exists(vault_path):
+        try:
+            with open(vault_path, "r", encoding="utf-8") as f:
+                vdata = json.load(f)
+                recipients = vdata.get("recipients", [])
+        except Exception:
+            pass
 
-    with open(vault_path, "r", encoding="utf-8") as f:
-        vault_data = json.load(f)
+    if not recipients and os.path.exists("recipients.json"):
+        with open("recipients.json", "r", encoding="utf-8") as f:
+            rdata = json.load(f)
+            recipients = rdata if isinstance(rdata, list) else rdata.get("recipients", [])
 
-    recipients = vault_data.get("recipients", [])
     if not recipients:
-        print("[!] No recipients configured in vault.")
-        return 0
+        print(f"[!] Critical Error: No recipients configured in recipients.json or {vault_path}.")
+        return 1
 
     unseen_count = 0
     acknowledged_count = 0
