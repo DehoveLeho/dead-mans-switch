@@ -333,7 +333,7 @@ def run_evaluation(
             print("[!] Warning: OWNER_EMAIL environment variable is not set. Cannot send warning reminder.")
             return 0
 
-        rappel_num = min(3, max(1, int(days)))
+        rappel_num = min(3, max(1, round(days)))
         subject = f"[Rappel {rappel_num}/3] Dead Man's Switch - Synchronisation requise"
         body = (
             f"Bonjour,\n\n"
@@ -386,9 +386,10 @@ def run_evaluation(
             print(f"[-] Recipient '{r_id}' has no email configured. Skipping.")
             continue
 
-        # Check if recipient already acknowledged decryption
+        # Check if recipient already acknowledged decryption during this trigger cycle
         seen_entry = seen_map.get(r_id)
-        if seen_entry and seen_entry.get("seen") is True:
+        seen_ts = seen_entry.get("timestamp", 0) if isinstance(seen_entry, dict) else 0
+        if seen_entry and seen_entry.get("seen") is True and seen_ts >= effective_ts:
             seen_time = seen_entry.get("iso", "previously")
             print(f"[SKIP] Recipient '{r_id}' ({r_email}) already decrypted their message (acknowledged: {seen_time}).")
             acknowledged_count += 1
