@@ -42,8 +42,9 @@ def get_latest_commit_timestamp(repo_dir: str = ".") -> int:
         return int(mock_ts)
 
     try:
+        # Prefer specific heartbeat check-in commits so regular code pushes do not reset the timer
         result = subprocess.run(
-            ["git", "log", "-1", "--format=%ct"],
+            ["git", "log", "-1", "--grep=Heartbeat: proof of life", "--format=%ct"],
             cwd=repo_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -51,6 +52,17 @@ def get_latest_commit_timestamp(repo_dir: str = ".") -> int:
             check=True,
         )
         ts_str = result.stdout.strip()
+        if not ts_str:
+            # Fallback to the latest commit of any kind
+            result = subprocess.run(
+                ["git", "log", "-1", "--format=%ct"],
+                cwd=repo_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+            ts_str = result.stdout.strip()
         if not ts_str:
             raise ValueError("Empty commit timestamp from git")
         return int(ts_str)
