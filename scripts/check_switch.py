@@ -29,6 +29,7 @@ import requests
 
 WARNING_THRESHOLD_DAYS = float(os.environ.get("WARNING_THRESHOLD_DAYS") or "1.0")
 TRIGGER_THRESHOLD_DAYS = float(os.environ.get("TRIGGER_THRESHOLD_DAYS") or "4.0")
+MAX_SPREAD_DAYS = float(os.environ.get("MAX_SPREAD_DAYS") or "7.0")
 SECONDS_PER_DAY = 86400.0
 
 
@@ -361,7 +362,14 @@ def run_evaluation(
         return 0
 
     # Case 3: Triggered (>= TRIGGER_THRESHOLD_DAYS)
-    print(f"[CRITICAL] Dead Man's Switch TRIGGERED! Inactivity {days:.2f} days >= {TRIGGER_THRESHOLD_DAYS} days.")
+    days_in_trigger = days - TRIGGER_THRESHOLD_DAYS
+    print(f"[CRITICAL] Dead Man's Switch TRIGGERED! Inactivity {days:.2f} days >= {TRIGGER_THRESHOLD_DAYS} days (Trigger Day: {days_in_trigger:.2f}).")
+
+    if days_in_trigger >= MAX_SPREAD_DAYS:
+        print(f"[*] Maximum spread window reached ({days_in_trigger:.2f} days >= {MAX_SPREAD_DAYS} days). Halting further emails to prevent spam classification.")
+        return 0
+
+    spread_day = min(int(MAX_SPREAD_DAYS), max(1, int(days_in_trigger) + 1))
 
     # 1. Fetch seen status from Cloudflare Worker KV
     seen_map = fetch_worker_status(cf_worker_url, cf_status_token)
@@ -410,15 +418,22 @@ def run_evaluation(
         unseen_count += 1
         access_url = f"{portal_url.rstrip('/')}/?recipient={r_id}"
 
-        subject = f"Message confidentiel pour {r_name}"
+        if spread_day == 1:
+            subject = f"Message confidentiel pour {r_name}"
+            reminder_intro = "Un message confidentiel vous a été laissé à l'adresse suivante :"
+        else:
+            subject = f"[Rappel {spread_day}/{int(MAX_SPREAD_DAYS)}] Message confidentiel pour {r_name}"
+            reminder_intro = f"Rappel quotidien ({spread_day}/{int(MAX_SPREAD_DAYS)}) : un message confidentiel vous attend et n'a pas encore été ouvert :"
+
         body = (
             f"Bonjour {r_name},\n\n"
-            f"Un message confidentiel vous a été laissé à l'adresse suivante :\n"
+            f"{reminder_intro}\n"
             f"{portal_url}\n\n"
             f"Pour y accéder :\n"
             f"1. Ouvrez le lien : {portal_url}\n"
             f"2. Écrivez votre prénom ('{r_name.split()[0]}')\n"
-            f"3. Cliquez sur votre nom et saisissez votre mot de passe pour lire le document.\n"
+            f"3. Cliquez sur votre nom et saisissez votre mot de passe pour lire le document.\n\n"
+            f"Note : dès que vous aurez déchiffré votre document, ces rappels quotidiens cesseront automatiquement.\n"
         )
 
         print(f"[+] Sending payload release notification to '{r_name}' <{r_email}>...")
