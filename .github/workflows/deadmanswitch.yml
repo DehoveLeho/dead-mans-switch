@@ -58,6 +58,8 @@ jobs:
           FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
           WARNING_THRESHOLD_DAYS: ${{ vars.WARNING_THRESHOLD_DAYS || '1.0' }}
           TRIGGER_THRESHOLD_DAYS: ${{ vars.TRIGGER_THRESHOLD_DAYS || '4.0' }}
+          GUARDIAN_EMAIL: ${{ secrets.GUARDIAN_EMAIL || vars.GUARDIAN_EMAIL }}
+          GUARDIAN_NAME: ${{ vars.GUARDIAN_NAME || 'Contact de confiance' }}
           DMS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: |
           python scripts/check_switch.py

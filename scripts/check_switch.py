@@ -365,7 +365,7 @@ def run_evaluation(
     days_in_trigger = days - TRIGGER_THRESHOLD_DAYS
     print(f"[CRITICAL] Dead Man's Switch TRIGGERED! Inactivity {days:.2f} days >= {TRIGGER_THRESHOLD_DAYS} days (Trigger Day: {days_in_trigger:.2f}).")
 
-    if days_in_trigger >= MAX_SPREAD_DAYS:
+    if days_in_trigger >= MAX_SPREAD_DAYS + 0.5:
         print(f"[*] Maximum spread window reached ({days_in_trigger:.2f} days >= {MAX_SPREAD_DAYS} days). Halting further emails to prevent spam classification.")
         return 0
 
@@ -396,6 +396,20 @@ def run_evaluation(
 
     unseen_count = 0
     acknowledged_count = 0
+    unseen_recipients = []
+
+    # Retrieve guardian configuration (env vars take precedence over recipients.json)
+    guardian_email = os.environ.get("GUARDIAN_EMAIL", "").strip()
+    guardian_name = os.environ.get("GUARDIAN_NAME", "Contact de confiance").strip()
+    if not guardian_email and os.path.exists("recipients.json"):
+        try:
+            with open("recipients.json", "r", encoding="utf-8") as f:
+                rdata = json.load(f)
+                if isinstance(rdata, dict) and "guardian" in rdata:
+                    guardian_email = rdata["guardian"].get("email", "").strip()
+                    guardian_name = rdata["guardian"].get("name", guardian_name).strip()
+        except Exception:
+            pass
 
     for r in recipients:
         r_id = r["id"].strip().lower()
@@ -416,6 +430,7 @@ def run_evaluation(
             continue
 
         unseen_count += 1
+        unseen_recipients.append({"id": r_id, "name": r_name, "email": r_email})
         access_url = f"{portal_url.rstrip('/')}/?recipient={r_id}"
 
         if spread_day == 1:
@@ -433,11 +448,33 @@ def run_evaluation(
             f"1. Ouvrez le lien : {portal_url}\n"
             f"2. Écrivez votre prénom ('{r_name.split()[0]}')\n"
             f"3. Cliquez sur votre nom et saisissez votre mot de passe pour lire le document.\n\n"
-            f"Note : dès que vous aurez déchiffré votre document, ces rappels quotidiens cesseront automatiquement.\n"
+            f"⚠️ Important :\n"
+            f"• Dès que vous aurez déchiffré votre document avec votre mot de passe, vous serez laissé(e) tranquille et ces rappels cesseront immédiatement.\n"
+            f"• En revanche, si d'ici le 7ᵉ rappel quotidien vous n'avez toujours pas déchiffré ce message, mon contact de confiance sera automatiquement averti de votre absence de réponse et aura pour mission de vous contacter directement pour s'assurer que vous avez bien pris connaissance du document.\n\n"
+            f"Bonne journée"
         )
 
         print(f"[+] Sending payload release notification to '{r_name}' <{r_email}>...")
         dispatch_notification(r_email, subject, body, dry_run=dry_run)
+
+    # Escalation to Guardian on day 7 if someone has still not acknowledged
+    if spread_day >= int(MAX_SPREAD_DAYS) and unseen_recipients and guardian_email:
+        missing_list_str = "\n".join([f"• {u['name']} ({u['email']})" for u in unseen_recipients])
+        guardian_subject = f"[URGENT] Dead Man's Switch - Destinataires injoignables après 7 jours"
+        guardian_body = (
+            f"Bonjour {guardian_name},\n\n"
+            f"Ceci est une alerte prioritaire du système Dead Man's Switch.\n\n"
+            f"Le Dead Man's Switch s'est déclenché et les 7 relances quotidiennes ont été envoyées aux destinataires.\n"
+            f"Cependant, la ou les personnes suivantes n'ont TOUJOURS PAS déchiffré leur document confidentiel :\n\n"
+            f"{missing_list_str}\n\n"
+            f"Votre mission est de prendre contact directement avec elles (par téléphone, SMS ou en personne) "
+            f"pour vous assurer qu'elles vont bien et leur demander de consulter leur message à l'adresse suivante :\n"
+            f"{portal_url}\n\n"
+            f"Merci pour votre aide précieuse,\n"
+            f"Système Dead Man's Switch"
+        )
+        print(f"[!] Escalating to Guardian '{guardian_name}' <{guardian_email}> for {len(unseen_recipients)} unseen recipient(s)...")
+        dispatch_notification(guardian_email, guardian_subject, guardian_body, dry_run=dry_run)
 
     print("=" * 65)
     print(f"Evaluation complete. Total: {len(recipients)} | Notified: {unseen_count} | Already Acknowledged: {acknowledged_count}")

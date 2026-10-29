@@ -18,5 +18,9 @@
       "message": "Hi Bob,\n\nHere are the access credentials for our shared infrastructure and offline backups:\n\n- Primary Server IP: 198.51.100.42\n- Root SSH Key backup located in safe box #104\n- Production database decryption key: DB-SEC-99482-GAMMA\n- DNS registrar recovery email: backup-ops@domain.internal\n\nThanks for everything, my friend.",
       "passphrase": "aspen-colorado-powder-snow"
     }
-  ]
+  ],
+  "guardian": {
+    "name": "Trusted Guardian",
+    "email": "guardian@example.com"
+  }
 }
