@@ -2,8 +2,8 @@ name: Dead Man's Switch Evaluator
 
 on:
   schedule:
-    # Exécution quotidienne tous les jours à 12:00 UTC (14:00 heure de Paris)
-    - cron: '0 12 * * *'
+    # Exécution quotidienne tous les jours à 19:00 heure de Paris (18:00 UTC)
+    - cron: '0 18 * * *'
   workflow_dispatch:
     # Allows manual trigger for testing and dry-run execution
     inputs:
@@ -56,8 +56,8 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
-          WARNING_THRESHOLD_DAYS: ${{ vars.WARNING_THRESHOLD_DAYS || '1.0' }}
-          TRIGGER_THRESHOLD_DAYS: ${{ vars.TRIGGER_THRESHOLD_DAYS || '4.0' }}
+          WARNING_THRESHOLD_DAYS: ${{ vars.WARNING_THRESHOLD_DAYS || '7.0' }}
+          TRIGGER_THRESHOLD_DAYS: ${{ vars.TRIGGER_THRESHOLD_DAYS || '10.0' }}
           GUARDIAN_EMAIL: ${{ secrets.GUARDIAN_EMAIL || vars.GUARDIAN_EMAIL }}
           GUARDIAN_NAME: ${{ vars.GUARDIAN_NAME || 'Contact de confiance' }}
           DMS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}

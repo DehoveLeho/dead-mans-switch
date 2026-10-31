@@ -27,8 +27,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-WARNING_THRESHOLD_DAYS = float(os.environ.get("WARNING_THRESHOLD_DAYS") or "1.0")
-TRIGGER_THRESHOLD_DAYS = float(os.environ.get("TRIGGER_THRESHOLD_DAYS") or "4.0")
+WARNING_THRESHOLD_DAYS = float(os.environ.get("WARNING_THRESHOLD_DAYS") or "7.0")
+TRIGGER_THRESHOLD_DAYS = float(os.environ.get("TRIGGER_THRESHOLD_DAYS") or "10.0")
 MAX_SPREAD_DAYS = float(os.environ.get("MAX_SPREAD_DAYS") or "7.0")
 SECONDS_PER_DAY = 86400.0
 
@@ -346,15 +346,21 @@ def run_evaluation(
             print("[!] Warning: OWNER_EMAIL environment variable is not set. Cannot send warning reminder.")
             return 0
 
-        rappel_num = min(3, max(1, round(days)))
+        warning_window = max(1.0, TRIGGER_THRESHOLD_DAYS - WARNING_THRESHOLD_DAYS)
+        days_in_warning = max(0.0, days - WARNING_THRESHOLD_DAYS)
+        step = warning_window / 3.0
+        rappel_num = min(3, max(1, int(days_in_warning / step) + 1))
+        cadence_str = "hebdomadaire" if step >= 3.5 else "quotidien"
+        cadence_plural = "hebdomadaires" if step >= 3.5 else "quotidiens"
+
         subject = f"[Rappel {rappel_num}/3] Dead Man's Switch - Synchronisation requise"
         body = (
             f"Bonjour,\n\n"
-            f"Ceci est le rappel quotidien #{rappel_num}/3 de votre Dead Man's Switch.\n\n"
+            f"Ceci est le rappel {cadence_str} #{rappel_num}/3 de votre Dead Man's Switch.\n\n"
             f"Aucun check-in n'a été enregistré depuis {days:.1f} jour(s).\n\n"
             f"Pour réinitialiser votre chronomètre et confirmer votre activité, cliquez simplement sur votre lien de synchronisation :\n"
             f"{ping_url}\n\n"
-            f"Attention : au bout de 3 rappels quotidiens restés sans réponse (après {TRIGGER_THRESHOLD_DAYS:.0f} jours sans check-in), "
+            f"Attention : au bout de 3 rappels {cadence_plural} restés sans réponse (après {TRIGGER_THRESHOLD_DAYS:.0f} jours sans check-in), "
             f"le système déclenchera automatiquement la diffusion (spread) des accès à vos destinataires.\n\n"
             f"Bonne journée,\nVotre Dead Man's Switch"
         )
